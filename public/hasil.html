@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hasil Photo Strip – Expo TA SIPERKOM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .hasil-shell {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+      text-align: center;
+    }
+    .hasil-card {
+      padding: 28px 20px;
+    }
+    .hasil-strip-img {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: 14px;
+      box-shadow: 0 18px 42px rgba(14, 30, 84, 0.22);
+      margin: 18px 0 22px;
+    }
+    .hasil-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="hasil-shell">
+    <div class="card hasil-card">
+      <div class="brand-pill">Expo TA SIPERKOM</div>
+      <h1 id="hasil-title" class="panel-title">Memuat Photo Strip...</h1>
+      <p id="hasil-subtitle" class="panel-subtitle">Mohon tunggu sebentar.</p>
+
+      <div id="hasil-loading" class="spinner"></div>
+
+      <div id="hasil-content" class="hidden">
+        <img id="hasil-img" class="hasil-strip-img" alt="Photo Strip Expo TA SIPERKOM" />
+        <div class="hasil-actions">
+          <a id="btn-download-strip" class="btn btn-primary btn-lg btn-block" href="#">
+            Unduh Photo Strip
+          </a>
+          <a id="btn-open-drive" class="btn btn-outline btn-block" href="#" target="_blank" rel="noopener noreferrer">
+            Buka di Google Drive
+          </a>
+        </div>
+      </div>
+
+      <div id="hasil-error" class="hidden">
+        <p id="hasil-error-text" style="color: var(--danger); font-weight: 600;"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      const folderId = decodeURIComponent(window.location.pathname.split('/').pop() || '');
+      const titleEl = document.getElementById('hasil-title');
+      const subtitleEl = document.getElementById('hasil-subtitle');
+      const loadingEl = document.getElementById('hasil-loading');
+      const contentEl = document.getElementById('hasil-content');
+      const errorEl = document.getElementById('hasil-error');
+      const errorTextEl = document.getElementById('hasil-error-text');
+      const imgEl = document.getElementById('hasil-img');
+      const downloadBtn = document.getElementById('btn-download-strip');
+      const driveBtn = document.getElementById('btn-open-drive');
+
+      try {
+        const res = await fetch(`/api/session/${encodeURIComponent(folderId)}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Hasil foto tidak ditemukan.');
+        }
+
+        titleEl.textContent = `Photo Strip (${data.folderName})`;
+        subtitleEl.textContent = 'Terima kasih sudah berkunjung ke Expo TA SIPERKOM!';
+        imgEl.src = data.stripImageUrl;
+        downloadBtn.href = data.downloadUrl;
+        driveBtn.href = data.driveViewUrl;
+
+        loadingEl.classList.add('hidden');
+        contentEl.classList.remove('hidden');
+      } catch (err) {
+        titleEl.textContent = 'Tidak Dapat Memuat Foto';
+        subtitleEl.textContent = '';
+        loadingEl.classList.add('hidden');
+        errorTextEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    })();
+  </script>
+</body>
+</html>

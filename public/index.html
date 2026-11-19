@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Photobooth – Expo TA SIPERKOM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- MediaPipe Hands untuk deteksi gesture 5 jari -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- A. HALAMAN WELCOME -->
+    <section id="view-welcome" class="view view-active">
+      <div class="welcome-card">
+        <div class="brand-pill">Photobooth Resmi</div>
+        <p class="welcome-greeting">Halo, Selamat Datang!</p>
+        <h1 class="welcome-title">Expo TA SIPERKOM</h1>
+        <p class="welcome-desc">Abadikan momen seru kamu di Expo TA SIPERKOM!</p>
+
+        <div class="welcome-preview-badges" aria-hidden="true">
+          <span class="mini-badge">2 atau 3 Foto</span>
+          <span class="mini-badge">Gesture 5 Jari</span>
+          <span class="mini-badge">Unduh via QR Code</span>
+        </div>
+
+        <button id="btn-start-session" class="btn btn-primary btn-lg" type="button">
+          <span>Mulai Sesi Foto</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- B. HALAMAN PHOTOBOOTH -->
+    <section id="view-photobooth" class="view">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-dot"></span>
+          <span class="brand-name">Expo TA SIPERKOM</span>
+        </div>
+        <div class="topbar-actions">
+          <div id="gesture-status-pill" class="status-pill status-loading">
+            <span class="status-dot"></span>
+            <span id="gesture-status-text">Memuat deteksi tangan...</span>
+          </div>
+          <button id="btn-back-welcome" class="btn btn-ghost btn-sm" type="button">
+            Kembali
+          </button>
+        </div>
+      </header>
+
+      <main class="photobooth-grid">
+        <!-- Bagian Kiri: Camera Preview -->
+        <div class="camera-panel card">
+          <div class="camera-stage">
+            <video id="camera-video" autoplay playsinline muted></video>
+            <div id="camera-flash" class="camera-flash"></div>
+
+            <!-- Overlay Countdown 3, 2, 1 -->
+            <div id="countdown-overlay" class="countdown-overlay hidden">
+              <div id="countdown-number" class="countdown-number">3</div>
+            </div>
+
+            <!-- Overlay Gesture Terdeteksi -->
+            <div id="gesture-badge" class="gesture-badge hidden">
+              ✋ 5 Jari Terdeteksi! Bersiap...
+            </div>
+
+            <!-- Overlay Izin / Error Kamera -->
+            <div id="camera-error-overlay" class="camera-error-overlay hidden">
+              <div class="camera-error-box">
+                <div class="error-icon">📷</div>
+                <h3>Akses Kamera Diperlukan</h3>
+                <p id="camera-error-message">
+                  Izinkan akses kamera pada browser untuk mengambil foto di photobooth.
+                </p>
+                <button id="btn-retry-camera" class="btn btn-primary" type="button">
+                  Coba Izinkan Kamera
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera-footer">
+            <button id="btn-ambil-foto" class="btn btn-primary" type="button" disabled>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              <span>Ambil Foto</span>
+            </button>
+
+            <button id="btn-retake-last" class="btn btn-outline hidden" type="button">
+              Ambil Ulang Foto Terakhir
+            </button>
+
+            <p class="gesture-hint">
+              Atau tunjukkan <strong>5 jari</strong> ke kamera untuk mulai countdown 3 detik.
+            </p>
+          </div>
+        </div>
+
+        <!-- Bagian Kanan: Pengaturan Photo Strip -->
+        <aside class="settings-panel card">
+          <div class="panel-section">
+            <h2 class="panel-title">Pengaturan Photo Strip</h2>
+            <p class="panel-subtitle">Pilih jumlah foto yang ingin kamu ambil dalam satu strip.</p>
+
+            <div class="count-selector" role="group" aria-label="Pilihan jumlah foto">
+              <button type="button" class="count-option active" data-count="2">
+                <span class="count-num">2</span>
+                <span class="count-label">2 Foto</span>
+              </button>
+              <button type="button" class="count-option" data-count="3">
+                <span class="count-num">3</span>
+                <span class="count-label">3 Foto</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <button id="btn-mulai-foto" class="btn btn-primary btn-block btn-lg" type="button" disabled>
+              Mulai Foto
+            </button>
+          </div>
+
+          <div class="panel-section progress-section">
+            <div class="progress-header">
+              <span class="progress-title">Progres Foto</span>
+              <span id="photo-progress-text" class="progress-badge">Foto 0 dari 2</span>
+            </div>
+
+            <div class="countdown-info">
+              <span>Countdown:</span>
+              <strong id="panel-countdown-status">3 detik otomatis</strong>
+            </div>
+
+            <div id="captured-thumbnails" class="thumbnails-grid" data-count="2">
+              <!-- Diisi dinamis oleh JS -->
+            </div>
+          </div>
+        </aside>
+      </main>
+    </section>
+
+    <!-- D. HALAMAN HASIL FOTO -->
+    <section id="view-result" class="view">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-dot"></span>
+          <span class="brand-name">Expo TA SIPERKOM</span>
+        </div>
+        <button id="btn-new-session" class="btn btn-primary" type="button">
+          Sesi Baru
+        </button>
+      </header>
+
+      <main class="result-grid">
+        <!-- Preview Photo Strip -->
+        <div class="strip-preview-card card">
+          <h2 class="panel-title">Hasil Photo Strip Kamu</h2>
+          <div class="strip-frame">
+            <img id="result-strip-img" alt="Hasil Photo Strip Expo TA SIPERKOM" />
+          </div>
+        </div>
+
+        <!-- Status Upload & QR Code -->
+        <div class="qr-panel card">
+          <div id="upload-loading-state" class="upload-state">
+            <div class="spinner"></div>
+            <h3>Mengunggah ke Google Drive...</h3>
+            <p>Mohon tunggu sebentar, foto dan photo strip kamu sedang disimpan.</p>
+          </div>
+
+          <div id="upload-error-state" class="upload-state hidden">
+            <div class="error-icon">⚠️</div>
+            <h3>Gagal Mengunggah Foto</h3>
+            <p id="upload-error-message">Terjadi kesalahan saat menyimpan ke Google Drive.</p>
+            <button id="btn-retry-upload" class="btn btn-primary" type="button">
+              Coba Unggah Lagi
+            </button>
+          </div>
+
+          <div id="upload-success-state" class="upload-state hidden">
+            <div class="success-badge">Tersimpan di Google Drive</div>
+            <h3 id="session-folder-label">Sesi Selesai!</h3>
+            <p class="qr-instruction">
+              Scan QR Code di bawah ini menggunakan kamera smartphone untuk melihat dan mengunduh photo strip kamu.
+            </p>
+            <div class="qr-box">
+              <img id="qr-code-img" alt="QR Code Hasil Photo Strip" />
+            </div>
+            <a id="qr-direct-link" class="btn btn-outline btn-sm" href="#" target="_blank" rel="noopener noreferrer">
+              Buka Link Hasil Foto
+            </a>
+          </div>
+
+          <div class="result-actions">
+            <button id="btn-new-session-bottom" class="btn btn-primary btn-block btn-lg" type="button">
+              Sesi Baru
+            </button>
+          </div>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <canvas id="capture-canvas" class="hidden"></canvas>
+  <canvas id="strip-canvas" class="hidden"></canvas>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
