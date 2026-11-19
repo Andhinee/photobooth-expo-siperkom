@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Photobooth – Expo TA SIPERKOM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet"
-  />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <!-- MediaPipe Hands untuk deteksi gesture 5 jari -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
+
 <body>
   <div class="app-shell">
     <!-- A. HALAMAN WELCOME -->
     <section id="view-welcome" class="view view-active">
       <div class="welcome-card">
-        <div class="brand-pill">Photobooth Resmi</div>
+        <div class="brand-pill">Photobooth</div>
         <p class="welcome-greeting">Halo, Selamat Datang!</p>
         <h1 class="welcome-title">Expo TA SIPERKOM</h1>
         <p class="welcome-desc">Abadikan momen seru kamu di Expo TA SIPERKOM!</p>
@@ -32,7 +32,8 @@
 
         <button id="btn-start-session" class="btn btn-primary btn-lg" type="button">
           <span>Mulai Sesi Foto</span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14" />
             <path d="m12 5 7 7-7 7" />
           </svg>
@@ -92,7 +93,8 @@
 
           <div class="camera-footer">
             <button id="btn-ambil-foto" class="btn btn-primary" type="button" disabled>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
@@ -219,4 +221,5 @@
 
   <script type="module" src="/app.js"></script>
 </body>
+
 </html>
