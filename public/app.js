@@ -555,7 +555,13 @@ async function uploadSession() {
       body: formData,
     });
 
-    const data = await response.json();
+    const rawText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`Server mengembalikan respon tidak valid (HTTP ${response.status}).`);
+    }
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'Upload ke Google Drive gagal.');
     }
