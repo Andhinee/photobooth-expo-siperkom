@@ -49,6 +49,9 @@
           <span class="brand-name">Expo TA SIPERKOM</span>
         </div>
         <div class="topbar-actions">
+          <button id="btn-toggle-sound" class="btn btn-ghost btn-sm" type="button" title="Aktifkan/Matikan Suara">
+            🔊 Suara
+          </button>
           <div id="gesture-status-pill" class="status-pill status-loading">
             <span class="status-dot"></span>
             <span id="gesture-status-text">Memuat deteksi tangan...</span>
@@ -167,11 +170,22 @@
       </header>
 
       <main class="result-grid">
-        <!-- Preview Photo Strip -->
+        <!-- Preview Photo Strip & Boomerang GIF -->
         <div class="strip-preview-card card">
-          <h2 class="panel-title">Hasil Photo Strip Kamu</h2>
-          <div class="strip-frame">
+          <h2 class="panel-title">Hasil Foto Kamu</h2>
+          <div id="result-tabs" class="result-tabs hidden" role="tablist" aria-label="Pilih tampilan hasil">
+            <button type="button" class="result-tab active" data-tab="strip" role="tab" aria-selected="true">
+              Photo Strip
+            </button>
+            <button type="button" class="result-tab" data-tab="gif" role="tab" aria-selected="false">
+              Boomerang GIF
+            </button>
+          </div>
+          <div id="strip-frame-panel" class="strip-frame">
             <img id="result-strip-img" alt="Hasil Photo Strip Expo TA SIPERKOM" />
+          </div>
+          <div id="gif-frame-panel" class="strip-frame hidden">
+            <img id="result-gif-img" alt="Animasi Boomerang Expo TA SIPERKOM" />
           </div>
         </div>
 
@@ -207,6 +221,10 @@
           </div>
 
           <div class="result-actions">
+            <div id="auto-reset-notice" class="auto-reset-notice hidden">
+              <span>Otomatis kembali dalam <strong id="auto-reset-seconds">120</strong> detik</span>
+              <button id="btn-extend-reset" class="btn-link" type="button">+30d</button>
+            </div>
             <button id="btn-new-session-bottom" class="btn btn-primary btn-block btn-lg" type="button">
               Sesi Baru
             </button>

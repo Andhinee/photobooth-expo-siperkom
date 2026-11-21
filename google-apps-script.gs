@@ -18,6 +18,7 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const photos = payload.photos || [];
     const stripBase64 = payload.strip;
+    const gifBase64 = payload.gif || null;
 
     if (photos.length < 2 || !stripBase64) {
       throw new Error('Data foto tidak lengkap.');
@@ -41,6 +42,13 @@ function doPost(e) {
     const stripBytes = Utilities.base64Decode(stripBase64);
     const stripBlob = Utilities.newBlob(stripBytes, 'image/jpeg', 'photo_strip.jpg');
     const stripFile = sessionFolder.createFile(stripBlob);
+
+    // Simpan boomerang.gif jika ada
+    if (gifBase64) {
+      const gifBytes = Utilities.base64Decode(gifBase64);
+      const gifBlob = Utilities.newBlob(gifBytes, 'image/gif', 'boomerang.gif');
+      sessionFolder.createFile(gifBlob);
+    }
 
     const result = {
       success: true,

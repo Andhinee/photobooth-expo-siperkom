@@ -2,6 +2,7 @@ const STRIP_BG_COLOR = '#0E1E54';
 const GESTURE_HOLD_FRAMES = 5;
 const GESTURE_COOLDOWN_MS = 5000;
 const GESTURE_POLL_INTERVAL_MS = 100;
+const AUTO_RESET_SECONDS = 120;
 
 const views = {
   welcome: document.getElementById('view-welcome'),
@@ -11,6 +12,7 @@ const views = {
 
 const els = {
   btnStartSession: document.getElementById('btn-start-session'),
+  btnToggleSound: document.getElementById('btn-toggle-sound'),
   btnBackWelcome: document.getElementById('btn-back-welcome'),
   btnRetryCamera: document.getElementById('btn-retry-camera'),
   btnAmbilFoto: document.getElementById('btn-ambil-foto'),
@@ -38,6 +40,11 @@ const els = {
   captureCanvas: document.getElementById('capture-canvas'),
   stripCanvas: document.getElementById('strip-canvas'),
   resultStripImg: document.getElementById('result-strip-img'),
+  resultTabs: document.getElementById('result-tabs'),
+  resultTabButtons: Array.from(document.querySelectorAll('.result-tab')),
+  stripFramePanel: document.getElementById('strip-frame-panel'),
+  gifFramePanel: document.getElementById('gif-frame-panel'),
+  resultGifImg: document.getElementById('result-gif-img'),
 
   uploadLoadingState: document.getElementById('upload-loading-state'),
   uploadErrorState: document.getElementById('upload-error-state'),
@@ -46,6 +53,9 @@ const els = {
   sessionFolderLabel: document.getElementById('session-folder-label'),
   qrCodeImg: document.getElementById('qr-code-img'),
   qrDirectLink: document.getElementById('qr-direct-link'),
+  autoResetNotice: document.getElementById('auto-reset-notice'),
+  autoResetSeconds: document.getElementById('auto-reset-seconds'),
+  btnExtendReset: document.getElementById('btn-extend-reset'),
 };
 
 const state = {
@@ -53,6 +63,7 @@ const state = {
   photoCount: 2,
   capturedPhotos: [], // { blob, dataUrl }
   stripResult: null,  // { blob, dataUrl }
+  gifResult: null,    // { blob, dataUrl }
   stream: null,
   cameraReady: false,
   isCapturing: false,
@@ -64,6 +75,10 @@ const state = {
   isDetectingFrame: false,
   fiveFingerStreak: 0,
   gestureCooldownUntil: 0,
+  soundEnabled: true,
+  audioCtx: null,
+  autoResetTimer: null,
+  autoResetRemaining: AUTO_RESET_SECONDS,
 };
 
 function createSessionId() {
@@ -319,7 +334,85 @@ function onHandResults(results) {
   }
 }
 
+function ensureAudioContext() {
+  if (!state.soundEnabled) return null;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!state.audioCtx) {
+    state.audioCtx = new AudioCtx();
+  }
+  if (state.audioCtx.state === 'suspended') {
+    state.audioCtx.resume().catch(() => {});
+  }
+  return state.audioCtx;
+}
+
+function playCountdownBeep(sec) {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(sec === 1 ? 880 : 660, now);
+
+  gain.gain.setValueAtTime(0.001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.15);
+}
+
+function playShutterSound() {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+
+  // Klik mekanik singkat
+  const clickOsc = ctx.createOscillator();
+  const clickGain = ctx.createGain();
+  clickOsc.type = 'triangle';
+  clickOsc.frequency.setValueAtTime(1400, now);
+  clickOsc.frequency.exponentialRampToValueAtTime(320, now + 0.045);
+  clickGain.gain.setValueAtTime(0.28, now);
+  clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+  clickOsc.connect(clickGain);
+  clickGain.connect(ctx.destination);
+  clickOsc.start(now);
+  clickOsc.stop(now + 0.055);
+
+  // Burst noise halus untuk efek shutter kamera
+  const bufferSize = Math.floor(ctx.sampleRate * 0.07);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+  }
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(2200, now);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.32, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noise.start(now);
+}
+
 function triggerFlash() {
+  playShutterSound();
   els.cameraFlash.classList.remove('flash-active');
   void els.cameraFlash.offsetWidth;
   els.cameraFlash.classList.add('flash-active');
@@ -333,6 +426,7 @@ async function runCountdown() {
     void els.countdownNumber.offsetWidth;
     els.countdownNumber.style.animation = '';
     els.panelCountdownStatus.textContent = `${sec}...`;
+    playCountdownBeep(sec);
     await sleep(1000);
   }
   els.countdownOverlay.classList.add('hidden');
@@ -419,8 +513,9 @@ async function startCaptureSequence() {
     // Set cooldown setelah sesi foto selesai
     state.gestureCooldownUntil = Date.now() + GESTURE_COOLDOWN_MS;
 
-    // Buat photo strip otomatis
+    // Buat photo strip & bonus boomerang GIF otomatis
     await generatePhotoStrip();
+    await generateBoomerangGif();
     showView('result');
     stopCamera();
     await uploadSession();
@@ -536,6 +631,67 @@ async function generatePhotoStrip() {
   els.resultStripImg.src = stripDataUrl;
 }
 
+function setResultTab(tabName) {
+  const showGif = tabName === 'gif' && Boolean(state.gifResult);
+  els.stripFramePanel.classList.toggle('hidden', showGif);
+  els.gifFramePanel.classList.toggle('hidden', !showGif);
+
+  els.resultTabButtons.forEach((btn) => {
+    const isActive = (showGif ? 'gif' : 'strip') === btn.dataset.tab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  });
+}
+
+async function generateBoomerangGif() {
+  try {
+    const { GIFEncoder, quantize, applyPalette } = await import(
+      'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js'
+    );
+
+    const width = 480;
+    const height = 360;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const images = await Promise.all(state.capturedPhotos.map((p) => loadImage(p.dataUrl)));
+    // Urutan boomerang: 2 foto -> [0, 1], 3 foto -> [0, 1, 2, 1]
+    const sequence = images.length === 3 ? [images[0], images[1], images[2], images[1]] : images;
+
+    const gif = GIFEncoder();
+    const delay = images.length === 3 ? 420 : 500;
+
+    for (const img of sequence) {
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const { data } = ctx.getImageData(0, 0, width, height);
+      const palette = quantize(data, 256);
+      const index = applyPalette(data, palette);
+      gif.writeFrame(index, width, height, { palette, delay });
+    }
+
+    gif.finish();
+    const gifBlob = new Blob([gif.bytes()], { type: 'image/gif' });
+
+    if (state.gifResult?.dataUrl) {
+      URL.revokeObjectURL(state.gifResult.dataUrl);
+    }
+
+    const gifDataUrl = URL.createObjectURL(gifBlob);
+    state.gifResult = { blob: gifBlob, dataUrl: gifDataUrl };
+    els.resultGifImg.src = gifDataUrl;
+    els.resultTabs.classList.remove('hidden');
+    setResultTab('strip');
+  } catch (err) {
+    console.warn('Gagal membuat Boomerang GIF:', err);
+    state.gifResult = null;
+    els.resultTabs.classList.add('hidden');
+    setResultTab('strip');
+  }
+}
+
 async function uploadSession() {
   els.uploadLoadingState.classList.remove('hidden');
   els.uploadErrorState.classList.add('hidden');
@@ -549,6 +705,9 @@ async function uploadSession() {
       formData.append('photos', photo.blob, `foto_${idx + 1}.jpg`);
     });
     formData.append('strip', state.stripResult.blob, 'photo_strip.jpg');
+    if (state.gifResult?.blob) {
+      formData.append('gif', state.gifResult.blob, 'boomerang.gif');
+    }
 
     const response = await fetch('/api/upload-session', {
       method: 'POST',
@@ -572,6 +731,7 @@ async function uploadSession() {
 
     els.uploadLoadingState.classList.add('hidden');
     els.uploadSuccessState.classList.remove('hidden');
+    startAutoResetTimer();
   } catch (err) {
     els.uploadLoadingState.classList.add('hidden');
     els.uploadSuccessState.classList.add('hidden');
@@ -581,20 +741,58 @@ async function uploadSession() {
   }
 }
 
+function stopAutoResetTimer() {
+  if (state.autoResetTimer) {
+    clearInterval(state.autoResetTimer);
+    state.autoResetTimer = null;
+  }
+  els.autoResetNotice.classList.add('hidden');
+}
+
+function startAutoResetTimer(seconds = AUTO_RESET_SECONDS) {
+  stopAutoResetTimer();
+  state.autoResetRemaining = seconds;
+  els.autoResetSeconds.textContent = String(state.autoResetRemaining);
+  els.autoResetNotice.classList.remove('hidden');
+
+  state.autoResetTimer = setInterval(() => {
+    if (state.activeView !== 'result') {
+      stopAutoResetTimer();
+      return;
+    }
+
+    state.autoResetRemaining -= 1;
+    els.autoResetSeconds.textContent = String(Math.max(0, state.autoResetRemaining));
+
+    if (state.autoResetRemaining <= 0) {
+      stopAutoResetTimer();
+      resetSession('welcome');
+    }
+  }, 1000);
+}
+
 function resetSession(targetView = 'welcome') {
+  stopAutoResetTimer();
   state.capturedPhotos.forEach((p) => URL.revokeObjectURL(p.dataUrl));
   if (state.stripResult?.dataUrl) {
     URL.revokeObjectURL(state.stripResult.dataUrl);
+  }
+  if (state.gifResult?.dataUrl) {
+    URL.revokeObjectURL(state.gifResult.dataUrl);
   }
 
   state.sessionId = createSessionId();
   state.capturedPhotos = [];
   state.stripResult = null;
+  state.gifResult = null;
   state.isCapturing = false;
   state.fiveFingerStreak = 0;
   state.gestureCooldownUntil = 0;
 
   els.resultStripImg.removeAttribute('src');
+  els.resultGifImg.removeAttribute('src');
+  els.resultTabs.classList.add('hidden');
+  setResultTab('strip');
   els.qrCodeImg.removeAttribute('src');
   els.qrDirectLink.href = '#';
 
@@ -611,7 +809,16 @@ function resetSession(targetView = 'welcome') {
 
 // Event Listeners
 els.btnStartSession.addEventListener('click', () => {
+  ensureAudioContext();
   resetSession('photobooth');
+});
+
+els.btnToggleSound.addEventListener('click', () => {
+  state.soundEnabled = !state.soundEnabled;
+  els.btnToggleSound.textContent = state.soundEnabled ? '🔊 Suara' : '🔇 Mute';
+  if (state.soundEnabled) {
+    ensureAudioContext();
+  }
 });
 
 els.btnBackWelcome.addEventListener('click', () => {
@@ -632,10 +839,12 @@ els.countOptions.forEach((btn) => {
 });
 
 els.btnMulaiFoto.addEventListener('click', () => {
+  ensureAudioContext();
   startCaptureSequence();
 });
 
 els.btnAmbilFoto.addEventListener('click', () => {
+  ensureAudioContext();
   startCaptureSequence();
 });
 
@@ -658,6 +867,18 @@ els.btnNewSession.addEventListener('click', () => {
 
 els.btnNewSessionBottom.addEventListener('click', () => {
   resetSession('welcome');
+});
+
+els.btnExtendReset.addEventListener('click', () => {
+  if (state.activeView !== 'result') return;
+  state.autoResetRemaining += 30;
+  els.autoResetSeconds.textContent = String(state.autoResetRemaining);
+});
+
+els.resultTabButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    setResultTab(btn.dataset.tab);
+  });
 });
 
 // Inisialisasi awal

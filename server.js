@@ -75,12 +75,14 @@ app.post(
   upload.fields([
     { name: 'photos', maxCount: 3 },
     { name: 'strip', maxCount: 1 },
+    { name: 'gif', maxCount: 1 },
   ]),
   async (req, res) => {
     try {
       const sessionId = String(req.body?.sessionId || '').trim();
       const photoFiles = req.files?.photos || [];
       const stripFile = req.files?.strip?.[0];
+      const gifFile = req.files?.gif?.[0] || null;
 
       if (!sessionId) {
         return res.status(400).json({
@@ -100,6 +102,7 @@ app.post(
         sessionId,
         photos: photoFiles.map((f) => f.buffer),
         stripBuffer: stripFile.buffer,
+        gifBuffer: gifFile ? gifFile.buffer : null,
       });
 
       const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim().replace(/\/+$/, '');

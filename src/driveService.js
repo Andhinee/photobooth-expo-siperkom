@@ -168,14 +168,14 @@ async function createPublicFolder(drive, folderName, parentFolderId) {
   return folder;
 }
 
-async function uploadJpegBuffer(drive, fileName, buffer, folderId) {
+async function uploadFileBuffer(drive, fileName, mimeType, buffer, folderId) {
   const res = await drive.files.create({
     requestBody: {
       name: fileName,
       parents: [folderId],
     },
     media: {
-      mimeType: 'image/jpeg',
+      mimeType,
       body: Readable.from(buffer),
     },
     fields: 'id, name, webViewLink, webContentLink',
@@ -188,7 +188,7 @@ async function uploadJpegBuffer(drive, fileName, buffer, folderId) {
 /**
  * Mengunggah sesi via Google Apps Script Web App (tanpa perlu Google Cloud Console).
  */
-async function uploadViaAppsScript({ sessionId, photos, stripBuffer, scriptUrl }) {
+async function uploadViaAppsScript({ sessionId, photos, stripBuffer, gifBuffer, scriptUrl }) {
   const response = await fetch(scriptUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -196,6 +196,7 @@ async function uploadViaAppsScript({ sessionId, photos, stripBuffer, scriptUrl }
       sessionId,
       photos: photos.map((buf) => buf.toString('base64')),
       strip: stripBuffer.toString('base64'),
+      gif: gifBuffer ? gifBuffer.toString('base64') : null,
     }),
     redirect: 'follow',
   });
@@ -229,10 +230,16 @@ async function uploadViaAppsScript({ sessionId, photos, stripBuffer, scriptUrl }
 /**
  * Membuat folder sesi unik di Google Drive dan mengunggah semua foto + photo strip.
  */
-export async function uploadSessionToDrive({ sessionId, photos, stripBuffer }) {
+export async function uploadSessionToDrive({ sessionId, photos, stripBuffer, gifBuffer = null }) {
   const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL?.trim();
   if (appsScriptUrl) {
-    return uploadViaAppsScript({ sessionId, photos, stripBuffer, scriptUrl: appsScriptUrl });
+    return uploadViaAppsScript({
+      sessionId,
+      photos,
+      stripBuffer,
+      gifBuffer,
+      scriptUrl: appsScriptUrl,
+    });
   }
 
   const drive = getDriveClient();
@@ -252,11 +259,21 @@ export async function uploadSessionToDrive({ sessionId, photos, stripBuffer }) {
   const uploadedPhotos = [];
   for (let i = 0; i < photos.length; i++) {
     const fileName = `foto_${i + 1}.jpg`;
-    const uploaded = await uploadJpegBuffer(drive, fileName, photos[i], folder.id);
+    const uploaded = await uploadFileBuffer(drive, fileName, 'image/jpeg', photos[i], folder.id);
     uploadedPhotos.push(uploaded);
   }
 
-  const stripFile = await uploadJpegBuffer(drive, 'photo_strip.jpg', stripBuffer, folder.id);
+  const stripFile = await uploadFileBuffer(
+    drive,
+    'photo_strip.jpg',
+    'image/jpeg',
+    stripBuffer,
+    folder.id
+  );
+
+  if (gifBuffer) {
+    await uploadFileBuffer(drive, 'boomerang.gif', 'image/gif', gifBuffer, folder.id);
+  }
 
   return {
     sessionId,
